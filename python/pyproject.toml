@@ -30,7 +30,8 @@ classifiers = [
 ]
 
 dependencies = [
-    # TODO,
+  "cv2",
+  "numpy",
 ]
 
 [project.urls]
