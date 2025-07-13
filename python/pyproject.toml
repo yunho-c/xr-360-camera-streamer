@@ -31,9 +31,9 @@ classifiers = [
 
 dependencies = [
   "aiortc",
-  "cv2",
   "fastapi",
   "numpy",
+  "opencv-python",
   "pyequilib",
   "python-multipart",
   "Pillow",
