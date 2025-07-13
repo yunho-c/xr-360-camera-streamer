@@ -10,8 +10,6 @@ from aiortc import RTCPeerConnection, RTCSessionDescription
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-# Setup logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
