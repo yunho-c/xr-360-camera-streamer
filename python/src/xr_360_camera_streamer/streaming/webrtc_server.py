@@ -6,7 +6,8 @@ from contextlib import asynccontextmanager
 import uvicorn
 from aiortc import RTCPeerConnection, RTCSessionDescription
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.templating import Jinja2Templates
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -26,6 +27,7 @@ class WebRTCServer:
         video_track_factory=None,
         datachannel_handlers=None,
         state_factory=None,
+        html_template=None,
     ):
         """
         Initializes the WebRTC Server.
@@ -54,6 +56,11 @@ class WebRTCServer:
         self.pcs = set()  # global storage for peer connection(s)
 
         self.app.post("/offer")(self._create_offer_handler)  # WebRTC signal endpoint
+        if html_template:
+            self.html_template = html_template
+            self.templates = Jinja2Templates(directory="templates")
+            self.app.mount("/static", StaticFiles(directory="static"), name="static")
+            self.app.get("/", response_class=HTMLResponse)(self.index)  # root endpoint to serve the HTML page
 
     @asynccontextmanager
     async def lifespan(self, app: FastAPI):
@@ -131,6 +138,9 @@ class WebRTCServer:
         return JSONResponse(
             content={"sdp": pc.localDescription.sdp, "type": pc.localDescription.type}
         )
+
+    async def index(self, request: Request):
+        return self.templates.TemplateResponse(self.html_template, {"request": request})
 
     def run(self):
         """Starts the web server."""
