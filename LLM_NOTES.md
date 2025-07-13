@@ -176,3 +176,15 @@ This part defines what your application actually *does* with the connection.
 * **Sending Media:** You can create media sources to send to the browser. For example, `MediaPlayer` can stream a video file, or `AudioStreamTrack` / `VideoStreamTrack` can be subclassed to generate audio/video programmatically (like a webcam feed or a simple clock). You add these tracks using `pc.addTrack()`.
 * **Receiving Media:** The `@pc.on("track")` event handler is where you manage incoming media. You can save it, process it with a library like **PyAV**, or relay it to another peer.
 * **Data Channels:** You can create a data channel using `pc.createDataChannel("name")` to send text or binary data. The `@pc.on("datachannel")` event handles incoming channels, where you can then listen for messages using `@channel.on("message")`.
+
+---
+
+> My project seeks to read 360 degree panoramic video files, project them into perspective projection, and stream it to a client. What would a great abstract base class for the transforms look like? Or, is it not really needed to have a structured interface?
+
+Of course. That's an excellent question that gets to the heart of building a robust and extensible video processing pipeline.
+
+To answer your second question first: **yes, having a structured interface for your transformations is highly recommended**. While you could write a single, monolithic function, defining a clear interface using an Abstract Base Class (ABC) offers significant advantages:
+
+- **Modularity**: You can implement different projection types (e.g., equirectangular-to-perspective, equirectangular-to-cubemap, fisheye correction) as separate, self-contained classes.
+- **Interchangeability**: Your main streaming logic can easily swap one transformation for another without changing the surrounding code. This is perfect for experimenting or offering different viewing modes.
+- **Clarity & Maintainability**: An ABC serves as clear documentation, defining exactly what a "transform" is expected to do. This makes the project easier to understand, test, and expand upon in the future.
