@@ -102,8 +102,8 @@ if __name__ == "__main__":
     }
 
     server = WebRTCServer(
-        video_track_factory=CustomTimeTrack,  # (must accept 'state' )
-        datachannel_handlers=data_handlers,  # (must accept 'message' and 'state')
+        video_track_factory=CustomTimeTrack,
+        datachannel_handlers=data_handlers,  # (must accept 'message')
         state_factory=AppState,
     )
 

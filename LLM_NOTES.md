@@ -188,3 +188,98 @@ To answer your second question first: **yes, having a structured interface for y
 - **Modularity**: You can implement different projection types (e.g., equirectangular-to-perspective, equirectangular-to-cubemap, fisheye correction) as separate, self-contained classes.
 - **Interchangeability**: Your main streaming logic can easily swap one transformation for another without changing the surrounding code. This is perfect for experimenting or offering different viewing modes.
 - **Clarity & Maintainability**: An ABC serves as clear documentation, defining exactly what a "transform" is expected to do. This makes the project easier to understand, test, and expand upon in the future.
+
+---
+
+```
+╭────────────────────────────────────────────────╮
+│  > Is it necessary to send pts and timestamp?  │
+╰────────────────────────────────────────────────╯
+```
+
+✦ That's a great question. You don't send them as two separate values. Instead, pts and time_base work together
+  to define the timestamp for the video frame.
+
+  Here's a breakdown:
+
+   * `frame.time_base`: This is the clock rate, or "ticks per second." A standard value for video is 90000 (90
+     kHz). It tells the receiver how to interpret the pts value.
+   * `frame.pts` (Presentation Timestamp): This is the timestamp for the specific frame, measured in the units
+     defined by time_base. It must increase with each frame so the receiver can order them correctly.
+
+  So, yes, setting both frame.pts and frame.time_base on the VideoFrame object is necessary. The aiortc
+  library uses these attributes to construct the RTP packets with the correct timing information for the
+  receiver.
+
+---
+
+```
+╭──────────────────────────────────────────────────────╮
+│  > Thank you! Btw, is `inspect` actually expensive?  │
+╰──────────────────────────────────────────────────────╯
+```
+
+✦ That's a great question. It gets to the heart of the design choice we made.
+
+  The short answer is: it's all relative.
+
+  inspect isn't "expensive" in the way that a complex database query or a network request is. You can call it thousands of times without noticing on a modern machine. However, it is significantly
+  more expensive than a simple function call or attribute lookup, and that's what matters in performance-critical code.
+
+  Here’s a more detailed breakdown:
+
+  What Makes inspect Slower?
+
+   1. It's Not a Simple Lookup: When you call a function like my_func(), Python just jumps to the function's code and executes it. When you call inspect.signature(my_func), it has to perform a lot of
+      work behind the scenes:
+       * It accesses the function's internal __code__ object.
+       * It iterates through the function's argument names, default values, annotations, and keyword-only arguments.
+       * It constructs a Signature object and several Parameter objects to represent what it found.
+       * This is all done in Python code (you can read inspect.py in the standard library), so it doesn't run at native C speed.
+
+   2. Potential for I/O: Some functions in the inspect module, like inspect.getsource(), might even need to read the .py file from the disk, which is a very slow I/O operation. We weren't using that,
+      but it's part of the module's nature.
+
+  Why It Matters in Our Context (The "Hot Path")
+
+  The key concept here is the "hot path"—a piece of code that is executed very frequently and has a significant impact on performance.
+
+   * `__init__` (Cold Path): The server's __init__ method is called exactly once when the WebRTCServer is created. The cost of running inspect a few times here is completely negligible. It might add a
+     few microseconds to the application startup time, which is irrelevant.
+
+   * `on_message` (Hot Path): The on_message handler for a data channel could be called hundreds or even thousands of times per second, depending on the application.
+
+  Let's imagine a quick benchmark:
+
+    1 import timeit
+    2 
+    3 def my_handler(message, state):
+    4     pass
+    5 
+    6 def call_handler():
+    7     my_handler(message="foo", state={})
+    8 
+    9 # This is just a placeholder for the real inspect logic
+   10 def inspect_and_call_handler():
+   11     # sig = inspect.signature(my_handler) # Simplified for illustration
+   12     # if 'state' in sig.parameters:
+   13     my_handler(message="foo", state={})
+   14 
+   15 # A direct call is typically in the nanosecond range
+   16 direct_call_time = timeit.timeit(call_handler, number=1_000_000)
+   17 
+   18 # An inspect call would be in the microsecond range
+   19 inspect_call_time = timeit.timeit(inspect_and_call_handler, number=1_000_000)
+
+  You would find that the inspect version is 100x to 1,000x slower than the direct call. While both are fast in absolute terms, adding a few microseconds of overhead to an operation that happens
+  thousands of times per second can become a real bottleneck.
+
+  Conclusion
+
+  So, you were right to question it. Using inspect inside the on_message handler would have been a performance mistake.
+
+  By moving the inspect logic into the __init__ method, we get the best of both worlds:
+   * Flexibility: The server is easy to use with any kind of handler.
+   * Performance: The expensive work is done once "offline," and the performance-critical "hot path" remains as fast as possible.
+
+---

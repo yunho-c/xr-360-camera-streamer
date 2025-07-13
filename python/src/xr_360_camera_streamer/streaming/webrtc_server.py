@@ -1,7 +1,9 @@
 import asyncio
+import inspect
 import logging
 import uuid
 from contextlib import asynccontextmanager
+from functools import partial, wraps
 
 import uvicorn
 from aiortc import RTCPeerConnection, RTCSessionDescription
@@ -30,30 +32,78 @@ class WebRTCServer:
         """
         Initializes the WebRTC Server.
 
-        NOTE: Both `video_track_factory` and `datachannel_handlers` must have function
-              signatures that accept `state` as a keyword argument.
-
         Args:
             host (str, optional): The host to bind the server to. Defaults to "0.0.0.0".
             port (int, optional): The port to run the server on. Defaults to 8080.
             video_track_factory (callable, optional): A function or class that, when called,
                 returns a new instance of a MediaStreamTrack. It will receive a `state` object
-                as a keyword argument.
+                as a keyword argument if its signature includes `state` or `**kwargs`.
             datachannel_handlers (dict, optional): A dictionary mappping data channel labels
-                (str) to callback functions. Callbacks will receive the message and a `state`
-                object as keyword arguments.
+                (str) to callback functions. Callbacks will receive a `state` object as a
+                keyword argument if their signature includes `state` or `**kwargs`.
             state_factory (callable, optional): A function or class that, when called, returns
                 a new state object for the peer connection.
         """
         self.host = host
         self.port = port
-        self.video_track_factory = video_track_factory
-        self.datachannel_handlers = datachannel_handlers
         self.state_factory = state_factory
         self.app = FastAPI(lifespan=self.lifespan)
         self.pcs = set()  # global storage for peer connection(s)
 
+        # Wrap factories and handlers to manage state passing and async execution
+        self._video_track_factory = self._wrap_callable(video_track_factory)
+        self._datachannel_handlers = {
+            label: self._wrap_callable(handler)
+            for label, handler in (datachannel_handlers or {}).items()
+        }
+
         self.app.post("/offer")(self._create_offer_handler)  # WebRTC signal endpoint
+
+    def _wrap_callable(self, func):
+        """
+        Wraps a user-provided callable (factory or handler) to standardize its
+        execution.
+
+        This wrapper performs two main functions:
+        1.  **State Injection**: It inspects the callable's signature once. If the
+            callable can accept a `state` keyword argument (i.e., it has a
+            `state` parameter or `**kwargs`), the wrapper will pass the
+            peer-specific state object to it. This is done at initialization
+            to avoid repeated, costly `inspect` calls in the hot path.
+        2.  **Async Handling**: It ensures that both synchronous and asynchronous
+            callables are handled correctly by returning an `async` wrapper that
+            `await`s the original function if it's a coroutine.
+
+        Args:
+            func (callable): The function or callable to wrap.
+
+        Returns:
+            An async wrapper function that normalizes the callable's execution.
+            Returns None if the input is None.
+        """
+        if func is None:
+            return None
+
+        sig = inspect.signature(func)
+        has_state = "state" in sig.parameters or any(
+            p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()
+        )
+        is_async = asyncio.iscoroutinefunction(func)
+
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            state = kwargs.pop("state", None)
+            call_args = kwargs
+
+            if has_state:
+                call_args["state"] = state
+
+            if is_async:
+                return await func(*args, **call_args)
+            else:
+                return func(*args, **call_args)
+
+        return wrapper
 
     @asynccontextmanager
     async def lifespan(self, app: FastAPI):
@@ -81,13 +131,15 @@ class WebRTCServer:
         logger.info(f"{pc_id}: Created for {request.client.host}")
 
         # Create a state object for peer connection
-        state = self.state_factory()
-        logger.info(f"{pc_id}: Created state object: {state}")
+        state = None
+        if self.state_factory:
+            state = self.state_factory()
+            logger.info(f"{pc_id}: Created state object: {state}")
 
         # Create a video track for peer connection
-        if self.video_track_factory:
+        if self._video_track_factory:
             logger.info(f"{pc_id}: Creating video track using provided factory.")
-            video_track = self.video_track_factory(state=state)
+            video_track = await self._video_track_factory(state=state)
             pc.addTrack(video_track)
         else:
             logger.warning(f"{pc_id}: No video_track_factory provided.")
@@ -98,15 +150,17 @@ class WebRTCServer:
             label = channel.label
             logger.info(f"{pc_id}: Data channel '{label}' created.")
 
-            if label in self.datachannel_handlers:
-                handler = self.datachannel_handlers[label]
+            if label in self._datachannel_handlers:
+                handler = self._datachannel_handlers[label]
 
                 @channel.on("message")
                 async def on_message(message):
                     logger.info(f"{pc_id}: Message on '{label}': {message}")
-                    handler(message=message, state=state)
+                    await handler(message=message, state=state)
             else:
-                logger.warning(f"{pc_id}: No handler registered for data channel '{label}'.")
+                logger.warning(
+                    f"{pc_id}: No handler registered for data channel '{label}'."
+                )
 
         @pc.on("connectionstatechange")
         async def on_connectionstatechange():
