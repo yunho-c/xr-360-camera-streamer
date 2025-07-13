@@ -134,3 +134,45 @@
   In summary: Don't worry about the pipe. For a 4K@60fps stream, you should focus your performance optimization efforts
   on ensuring ffmpeg can decode fast enough (ideally with hardware acceleration) and that your Python frame processing
   loop is highly efficient.
+
+---
+
+> Could you tell me the basic structure of an `aiortc` application?
+
+Of course. The basic structure of an `aiortc` application involves three main parts: a **signaling mechanism**, the **`RTCPeerConnection` object**, and **media/data handling**.
+
+## Signaling
+
+Before a direct peer-to-peer connection can be made, the two parties (e.g., a web browser and your Python server) need to exchange information to coordinate the connection. This process is called **signaling**.
+
+* `aiortc` **does not handle signaling**. You must build this yourself.
+* It's typically done using a web server framework like **AIOHTTP** or **FastAPI**.
+* The process involves:
+    1.  The client (browser) creates a session description protocol (**SDP**) **offer** and sends it to your Python server over HTTP or WebSockets.
+    2.  Your `aiortc` application receives this offer.
+    3.  Your application generates an **SDP answer** and sends it back to the client.
+    4.  During this process, **ICE candidates** (IP addresses/ports) are also exchanged to find the best path for the connection.
+
+## `RTCPeerConnection`
+
+This is the core object in `aiortc` that manages the entire WebRTC session.
+
+1.  **Initialization:** You create an instance of `RTCPeerConnection`.
+2.  **Event Handling:** You attach event handlers to the connection object, most importantly:
+    * `@pc.on("track")`: This event fires when the remote peer (the browser) adds an audio or video track. You define what to do with the incoming media here.
+    * `@pc.on("datachannel")`: Fires when the remote peer opens a data channel.
+3.  **Session Setup:**
+    * You receive the client's **offer** from your signaling server.
+    * You call `await pc.setRemoteDescription(offer)`.
+    * You add your own audio, video, or data tracks to the connection (e.g., `pc.addTrack(...)`).
+    * You create an answer by calling `await pc.createAnswer()`.
+    * You set this answer as the local description: `await pc.setLocalDescription(answer)`.
+    * Finally, you send this answer back to the client via your signaling mechanism.
+
+## Media and Data Handling
+
+This part defines what your application actually *does* with the connection.
+
+* **Sending Media:** You can create media sources to send to the browser. For example, `MediaPlayer` can stream a video file, or `AudioStreamTrack` / `VideoStreamTrack` can be subclassed to generate audio/video programmatically (like a webcam feed or a simple clock). You add these tracks using `pc.addTrack()`.
+* **Receiving Media:** The `@pc.on("track")` event handler is where you manage incoming media. You can save it, process it with a library like **PyAV**, or relay it to another peer.
+* **Data Channels:** You can create a data channel using `pc.createDataChannel("name")` to send text or binary data. The `@pc.on("datachannel")` event handles incoming channels, where you can then listen for messages using `@channel.on("message")`.

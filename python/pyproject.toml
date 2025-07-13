@@ -30,8 +30,14 @@ classifiers = [
 ]
 
 dependencies = [
+  "aiortc",
   "cv2",
+  "fastapi",
   "numpy",
+  "python-multipart",
+  "Pillow",
+  "torch",
+  "uvicorn",
 ]
 
 [project.urls]
