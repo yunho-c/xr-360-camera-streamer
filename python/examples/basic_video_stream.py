@@ -52,7 +52,6 @@ def create_video_track():
         "..",
         "xr-360-streamer-assets",
         "videos",
-        # "One Piece ｜ New Opening Theme ｜ The Peak - SEKAI NO OWARI [LrCmsOAgvxk].mp4",  # Using the same video, but without reprojection
         "360_video.mp4",  # Using the same video, but without reprojection
     )
 
