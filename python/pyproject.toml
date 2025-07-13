@@ -1,0 +1,92 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# ------------------------------------------------------------------- #
+#                            Project Metadata                         #
+# (https://packaging.python.org/en/latest/specifications/declaring-project-metadata/)
+# ------------------------------------------------------------------- #
+
+[project]
+name = "xr-360-camera-streamer"
+dynamic = ["version"] # see [tool.hatch.version]
+description = "A Python project that streams 360 panoramic videos to XR headsets."
+readme = "README.md"
+authors = [
+  { name = "Yunho Cho", email = "github@yunhocho.com" },
+]
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Operating System :: OS Independent",
+]
+
+dependencies = [
+    # TODO,
+]
+
+[project.urls]
+Homepage = "https://github.com/yunho-c/xr-360-camera-streamer"
+Repository = "https://github.com/yunho-c/xr-360-camera-streamer"
+"Bug Tracker" = "https://github.com/yunho-c/xr-360-camera-streamer/issues"
+
+[project.scripts]
+xr-streamer = "xr_360_camera_streamer.cli:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov",
+    "mypy>=1.0",
+    "ruff",
+    "pre-commit",
+    "hatch",
+]
+# To install: pip install -e .[dev]
+
+# ------------------------------------------------------------------- #
+#                           Tool Configuration                        #
+# ------------------------------------------------------------------- #
+
+[tool.hatch.version]
+path = "src/xr_360_camera_streamer/__about__.py"
+
+[tool.ruff]
+# See https://docs.astral.sh/ruff/configuration/
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "UP", "C4", "B"]
+ignore = []
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = "-ra -q --cov=xr_360_camera_streamer --cov-report=term-missing"
+testpaths = [
+    "tests",
+]
+
+[tool.mypy]
+# See https://mypy.readthedocs.io/en/stable/config_file.html
+packages = ["xr_360_camera_streamer"]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
+[[tool.mypy.overrides]]
+# Allow third-party libraries that don't have type hints
+module = [
+    "requests.*",
+]
+ignore_missing_imports = true
