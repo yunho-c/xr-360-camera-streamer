@@ -1,10 +1,65 @@
+import logging
 import subprocess
+import sys
 from pathlib import Path
 
 import cv2
 import numpy as np
 
 from xr_360_camera_streamer.sources import VideoSource
+
+logger = logging.getLogger(__name__)
+
+_available_hw_accels = None
+
+
+def get_ffmpeg_hw_accels():
+    """
+    Checks for available hardware acceleration methods in FFmpeg.
+    Caches the result to avoid repeated calls.
+    Returns:
+        A set of available hardware acceleration method names.
+    """
+    global _available_hw_accels
+    if _available_hw_accels is not None:
+        return _available_hw_accels
+
+    try:
+        result = subprocess.run(
+            ["ffmpeg", "-hwaccels"], capture_output=True, text=True, check=True, encoding="utf-8"
+        )
+        lines = result.stdout.strip().split("\n")
+        # The first line is "Hardware acceleration methods:"
+        accels = {line.strip() for line in lines[1:] if line.strip()}
+        _available_hw_accels = accels
+        logger.info(f"Available FFmpeg HW accels: {_available_hw_accels}")
+    except (FileNotFoundError, subprocess.CalledProcessError) as e:
+        logger.warning(f"Could not get FFmpeg HW accels. Is ffmpeg in PATH? Error: {e}")
+        _available_hw_accels = set()
+    return _available_hw_accels
+
+
+def get_best_hw_accel() -> str | None:
+    """
+    Determines the best available hardware acceleration method for the current platform.
+    """
+    available = get_ffmpeg_hw_accels()
+    if not available:
+        return None
+
+    # Preference order by platform
+    if sys.platform == "darwin":  # macOS
+        preferred_order = ["videotoolbox"]
+    elif sys.platform == "win32":  # Windows
+        preferred_order = ["d3d11va", "nvdec", "qsv", "cuda"]
+    else:  # Linux and other Unix-likes
+        preferred_order = ["vaapi", "nvdec", "vdpau", "qsv", "cuda"]
+
+    for method in preferred_order:
+        if method in available:
+            return method
+
+    return None
 
 
 class FFmpegFileSource(VideoSource):
@@ -14,13 +69,18 @@ class FFmpegFileSource(VideoSource):
     This can be faster for some high-resolution or high-framerate videos
     as it avoids some of the overhead of OpenCV's wrapper.
 
+    It can use hardware acceleration if `ffmpeg` was compiled with support for it,
+    which can significantly reduce CPU usage for high-resolution videos (e.g., 4K).
+
     Requires `ffmpeg` to be installed and accessible in the system's PATH.
 
     Args:
         filepath (str): The path to the video file.
+        hw_accel_enabled (bool): If True, attempts to use the best available
+            hardware acceleration method for the current platform. Defaults to True.
     """
 
-    def __init__(self, filepath: str):
+    def __init__(self, filepath: str, hw_accel_enabled: bool = True):
         self.filepath = Path(filepath)
         if not self.filepath.is_file():
             raise FileNotFoundError(f"Video file not found at: {filepath}")
@@ -40,15 +100,30 @@ class FFmpegFileSource(VideoSource):
         self.frame_size = self._width * self._height * 3
 
         # Construct the FFmpeg command
-        # fmt: off
-        self.ffmpeg_command = [
-            'ffmpeg',                 # Input file
-            '-i', str(self.filepath), # Suppress verbose output
-            '-loglevel', 'error',     # Output format: raw video frames
-            '-f', 'rawvideo',         # Pixel format: 24-bit RGB
-            '-pix_fmt', 'rgb24',      # Output to stdout
-            '-'
+        command = [
+            "ffmpeg",
         ]
+
+        if hw_accel_enabled:
+            hw_accel_method = get_best_hw_accel()
+            if hw_accel_method:
+                logger.info(f"Using '{hw_accel_method}' for hardware acceleration.")
+                command.extend(["-hwaccel", hw_accel_method])
+            else:
+                logger.warning(
+                    "Hardware acceleration was requested, but no suitable method "
+                    "was found. Falling back to software decoding."
+                )
+
+        # fmt: off
+        command.extend([
+            '-i', str(self.filepath),  # Input file
+            '-loglevel', 'error',      # Suppress verbose output
+            '-f', 'rawvideo',          # Output format: raw video frames
+            '-pix_fmt', 'rgb24',       # Pixel format: 24-bit RGB
+            '-'                        # Output to stdout
+        ])
+        self.ffmpeg_command = command
         # fmt: on
 
         # Start the FFmpeg subprocess
