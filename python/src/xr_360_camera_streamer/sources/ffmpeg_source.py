@@ -1,14 +1,12 @@
-import logging
 import subprocess
 import sys
 from pathlib import Path
 
 import cv2
 import numpy as np
+from .. import logger
 
 from xr_360_camera_streamer.sources import VideoSource
-
-logger = logging.getLogger(__name__)
 
 _available_hw_accels = None
 
@@ -81,15 +79,17 @@ class FFmpegFileSource(VideoSource):
     """
 
     def __init__(self, filepath: str, hw_accel_enabled: bool = True):
-        self.filepath = Path(filepath)
+        self.filepath = Path(filepath)  # NOTE: avoid using `filepath` directly (?)
         if not self.filepath.is_file():
-            raise FileNotFoundError(f"Video file not found at: {filepath}")
+            raise FileNotFoundError(f"Video file not found at: {str(self.filepath)}")
 
         # Use OpenCV once to get reliable metadata.
         # This is simpler than parsing ffprobe's output.
         cap = cv2.VideoCapture(str(self.filepath))
-        if not cap.isOpened():
-            raise ValueError(f"Failed to open video file with OpenCV (to get metadata): {filepath}")
+        if cap.isOpened():
+            logger.info(f"Successfully inspected video file: {str(self.filepath)}")
+        else:
+            raise ValueError(f"Failed to inspect video file: {str(self.filepath)}")
 
         self._width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         self._height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))

@@ -32,6 +32,7 @@ classifiers = [
 dependencies = [
   "aiortc",
   "fastapi",
+  "loguru",
   "numpy",
   "opencv-python",
   "pyequilib",

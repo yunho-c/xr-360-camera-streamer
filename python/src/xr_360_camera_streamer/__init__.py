@@ -1,25 +1,31 @@
 """A Python project that streams 360 panoramic videos to XR headsets."""
 
-import logging
+import sys
+
+from loguru import logger
 
 from . import __about__
 from .sources.base import VideoSource
 from .transforms.base import VideoTransform
 
-__all__ = ["__version__", "VideoSource", "VideoTransform"]
+__all__ = ["__version__", "VideoSource", "VideoTransform", "logger"]
 __version__ = __about__.version
 
 # Set up logging for the library.
-# This will create a default handler that logs to the console.
-# If the user of the library has configured logging, this will not run,
-# and the library will use the user's logging configuration.
-logger = logging.getLogger(__name__)
-if not logging.getLogger().handlers:
-    logger.setLevel(logging.INFO)
-    handler = logging.StreamHandler()
-    formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
-    logger.propagate = False
+#
+# This library uses Loguru for logging. By default, Loguru is configured to output
+# logs to stderr. Library users can customize this behavior by using the `logger`
+# object.
+#
+# For example, to redirect logs to a file:
+#
+# from loguru import logger
+# logger.add("my_app.log")
+#
+# To disable logging from the library, the default handler can be removed:
+#
+# logger.remove()
+#
+# For more advanced configuration, please refer to the Loguru documentation.
+logger.remove()
+logger.add(sys.stderr, format="{level: <8}: {message}", level="INFO")

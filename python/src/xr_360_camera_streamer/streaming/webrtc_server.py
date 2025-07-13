@@ -1,6 +1,5 @@
 import asyncio
 import inspect
-import logging
 import uuid
 from contextlib import asynccontextmanager
 from functools import partial, wraps
@@ -9,8 +8,7 @@ import uvicorn
 from aiortc import RTCPeerConnection, RTCSessionDescription
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-
-logger = logging.getLogger(__name__)
+from .. import logger
 
 
 class WebRTCServer:
