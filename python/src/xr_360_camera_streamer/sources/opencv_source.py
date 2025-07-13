@@ -15,9 +15,10 @@ class OpenCVFileSource(VideoSource):
 
     Args:
         filepath (str): The path to the video file.
+        use_rgb (bool): Whether to convert the frames to RGB. Defaults to True.
     """
 
-    def __init__(self, filepath: str, use_rgb=False):
+    def __init__(self, filepath: str, use_rgb=True):
         self.filepath = Path(filepath)
         if not self.filepath.is_file():
             raise FileNotFoundError(f"Video file not found at: {filepath}")
