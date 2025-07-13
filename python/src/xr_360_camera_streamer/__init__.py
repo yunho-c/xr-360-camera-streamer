@@ -28,4 +28,4 @@ __version__ = __about__.version
 #
 # For more advanced configuration, please refer to the Loguru documentation.
 logger.remove()
-logger.add(sys.stderr, format="{level: <8}: {message}", level="INFO")
+logger.add(sys.stderr, format="{level: <9} {message}", level="INFO")
