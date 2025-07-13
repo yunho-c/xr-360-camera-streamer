@@ -1,6 +1,7 @@
 import asyncio
 import os
 import time
+from pathlib import Path
 
 from aiortc import MediaStreamTrack
 from av import VideoFrame
@@ -47,12 +48,10 @@ def create_video_track():
     # NOTE: Update this path to your video file.
     # The asset directory is expected to be at the root of the repository.
     video_path = os.path.join(
-        os.path.dirname(__file__),
-        "..",
-        "..",
+        Path(__file__).parents[2],
         "xr-360-streamer-assets",
         "videos",
-        "360_video.mp4",  # Using the same video, but without reprojection
+        "360_video.mp4",
     )
 
     if not os.path.exists(video_path):
