@@ -43,6 +43,9 @@ class OpenCVFileSource(VideoSource):
     def fps(self) -> float:
         return self._fps
 
+    def __iter__(self):
+        return self
+
     def __next__(self) -> np.ndarray:
         """Reads the next frame. Raises StopIteration when the video ends."""
         ret, frame = self.cap.read()

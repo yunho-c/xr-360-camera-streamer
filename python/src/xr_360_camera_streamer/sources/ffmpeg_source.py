@@ -143,6 +143,9 @@ class FFmpegFileSource(VideoSource):
     def fps(self) -> float:
         return self._fps
 
+    def __iter__(self):
+        return self
+
     def __next__(self) -> np.ndarray:
         """Reads a raw frame from the stdout pipe and reshapes it."""
         # Read the exact number of bytes for one frame
