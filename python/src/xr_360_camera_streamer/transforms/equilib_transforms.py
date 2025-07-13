@@ -14,17 +14,18 @@ class EquilibEqui2Pers(VideoTransform):
         output_height (int): The height of the output perspective video.
     """
 
-    def __init__(self, output_width: int, output_height: int) -> None:
+    def __init__(self, output_width: int, output_height: int, fov_x: float) -> None:
         """
         Initializes the EquilibReprojection.
 
         Args:
             output_width (int): The width of the output perspective video.
             output_height (int): The height of the output perspective video.
+            fov_x (float): The horizontal field of view in degrees.
         """
         self._output_width = output_width
         self._output_height = output_height
-        self._equi2pers = Equi2Pers(width=output_width, height=output_height)
+        self._equi2pers = Equi2Pers(width=output_width, height=output_height, fov_x=fov_x)
 
     @property
     def output_width(self) -> int:
@@ -34,7 +35,21 @@ class EquilibEqui2Pers(VideoTransform):
     def output_height(self) -> int:
         return self._output_height
 
-    def transform(self, frame: np.ndarray, rot: dict[str, float], fov_x: float) -> np.ndarray:
+    def preprocess(self, img: np.ndarray) -> np.ndarray:
+        """
+        Preprocesses image
+
+        (from equilib/scripts/equi2pers_numpy.py)
+        """
+        assert len(img.shape) == 3, "input must be dim=3"
+        assert img.shape[-1] == 3, "input must be HWC"
+        img = np.transpose(img, (2, 0, 1))  # ?!
+        return img
+
+    def postprocess(self, img: np.ndarray) -> np.ndarray:
+        return np.transpose(img, (1, 2, 0))  # ?!
+
+    def transform(self, frame: np.ndarray, rot: dict[str, float]) -> np.ndarray:
         """
         Re-projects an equirectangular frame to a perspective frame.
 
@@ -44,10 +59,13 @@ class EquilibEqui2Pers(VideoTransform):
                 - "pitch": rotation in degrees around the x-axis.
                 - "yaw": rotation in degrees around the y-axis.
                 - "roll": rotation in degrees around the z-axis.
-            fov_x (float): The horizontal field of view in degrees.
 
         Returns:
             np.ndarray: The perspective frame.
         """
-        perspective_frame = self._equi2pers(equi=frame, rot=rot, fov_x=fov_x)
+        # NOTE: `_equi2pers()` *silently hangs* when non-CHW images are provided.
+
+        equi = self.preprocess(frame)
+        pers = self._equi2pers(equi=equi, rots=rot)
+        perspective_frame = self.postprocess(pers)
         return perspective_frame
