@@ -2,10 +2,11 @@ import argparse
 import asyncio
 import json
 import os
+import struct
 import time
 from functools import partial
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, List, Optional, Tuple
 
 import numpy as np
 from aiortc import MediaStreamTrack
@@ -41,6 +42,62 @@ class AppState:
 
     def get_rot(self) -> dict[str, float]:
         return {"pitch": self.pitch, "yaw": self.yaw, "roll": self.roll}
+
+
+# Define a simple data structure to hold the bone data
+class Bone:
+    def __init__(
+        self, position: Tuple[float, float, float], rotation: Tuple[float, float, float, float]
+    ):
+        self.position = position
+        self.rotation = rotation
+
+    def __repr__(self):
+        return f"Bone(pos={self.position}, rot={self.rotation})"
+
+
+def deserialize_pose_data(data: bytes) -> List[Bone]:
+    """
+    Deserializes the binary pose data stream from the Unity client.
+
+    Args:
+        data: The raw byte string received from the data channel.
+
+    Returns:
+        A list of Bone objects.
+    """
+    bones = []
+    offset = 0
+
+    # The C# BinaryWriter is little-endian by default. The format string '<' specifies this.
+    # '<i' = little-endian integer (4 bytes)
+    # '<7f' = 7 little-endian floats (7 * 4 = 28 bytes)
+
+    try:
+        # 1. Read the number of bones (an integer)
+        (bone_count,) = struct.unpack_from("<i", data, offset)
+        offset += 4
+
+        # 2. Loop for each bone to read its data
+        for _ in range(bone_count):
+            # Ensure there is enough data left in the buffer
+            if offset + 28 > len(data):
+                print("Error: Incomplete data buffer for a bone.")
+                break
+
+            # 3. Unpack 7 floats for the bone's position (x,y,z) and rotation (x,y,z,w)
+            bone_data = struct.unpack_from("<7f", data, offset)
+            offset += 28
+
+            position = (bone_data[0], bone_data[1], bone_data[2])
+            rotation = (bone_data[3], bone_data[4], bone_data[5], bone_data[6])
+
+            bones.append(Bone(position, rotation))
+
+    except struct.error as e:
+        print(f"Error deserializing pose data: {e}")
+
+    return bones
 
 
 # Define a custom video track that applies reprojection
@@ -88,23 +145,24 @@ def on_camera_message(message: str, state: AppState):
         print(f"Could not process camera data: {e}")
 
 
-def on_body_pose_message(message: str, state: AppState):
+def on_body_pose_message(message: bytes, state: AppState):
     try:
-        data = json.loads(message)
-        print(f"Received pose data: {data}")
+        if isinstance(message, bytes):
+            pose_data = deserialize_pose_data(message)
+            # print(f"Received {len(pose_data)} bones")
 
-        # Log to rerun
-        if state.visualizer:
-            rr = state.visualizer
-            # https://rerun.io/docs/concepts/timelines
-            rr.set_time("body_pose_timestamp", timestamp=data["timestamp"])
-            for bone in data["bones"]:
-                rr.log(
-                    f"world/user/bones/{bone['id']}",
-                    rr.Points3D(positions=[list(bone["position"].values())]), # parse dict to list
-                )
+            # Log to rerun
+            if state.visualizer:
+                rr = state.visualizer
+                # Arbitrary timestamp for visualization timeline
+                rr.set_time_sequence("body_pose_timestamp", int(time.time() * 1000))
+                for i, bone in enumerate(pose_data):
+                    rr.log(
+                        f"world/user/bones/{i}",
+                        rr.Points3D(positions=[bone.position]),
+                    )
 
-    except (json.JSONDecodeError, TypeError, ValueError) as e:
+    except Exception as e:
         print(f"Could not process body pose data: {e}")
 
 
