@@ -132,11 +132,17 @@ class WebRTCServer:
             state = self.state_factory()
             logger.info(f"{pc_id}: Created state object: {state}")
 
-        # Create a video track for peer connection
+        # Create a video track if peer connection requests
         if self._video_track_factory:
-            logger.info(f"{pc_id}: Creating video track using provided factory.")
-            video_track = await self._video_track_factory(state=state)
-            pc.addTrack(video_track)
+            from aiortc.sdp import SessionDescription
+
+            parsed_offer = SessionDescription.parse(offer.sdp)
+            if any(m.kind == "video" and m.port != 0 for m in parsed_offer.media):
+                logger.info(f"{pc_id}: Client wants video, creating track.")
+                video_track = await self._video_track_factory(state=state)
+                pc.addTrack(video_track)
+            else:
+                logger.info(f"{pc_id}: Client does not want video, not adding track.")
         else:
             logger.warning(f"{pc_id}: No video_track_factory provided.")
 
@@ -154,9 +160,7 @@ class WebRTCServer:
                     logger.info(f"{pc_id}: Message on '{label}': {message}")
                     await handler(message=message, state=state)
             else:
-                logger.warning(
-                    f"{pc_id}: No handler registered for data channel '{label}'."
-                )
+                logger.warning(f"{pc_id}: No handler registered for data channel '{label}'.")
 
         @pc.on("connectionstatechange")
         async def on_connectionstatechange():
