@@ -59,7 +59,10 @@ dev = [
     "pre-commit",
     "hatch",
 ]
-# To install: pip install -e .[dev]
+viz = [
+    "rerun-sdk"
+]
+# To install: pip install -e .[dev,viz]
 
 # ------------------------------------------------------------------- #
 #                           Tool Configuration                        #
