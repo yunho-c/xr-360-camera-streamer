@@ -207,6 +207,7 @@ if __name__ == "__main__":
             exit(1)
 
         rr.init("xr-360-camera-streamer", spawn=True)
+        rr.log("world", rr.ViewCoordinates.LEFT_HAND_Y_UP, static=True)  # Set Y as the up axis
         state_factory = partial(AppState, visualizer=rr)
 
     data_handlers = {
