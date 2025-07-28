@@ -15,6 +15,7 @@ from av import VideoFrame
 from xr_360_camera_streamer.sources import FFmpegFileSource, OpenCVFileSource
 from xr_360_camera_streamer.streaming import WebRTCServer
 from xr_360_camera_streamer.transforms import EquilibEqui2Pers
+from ovr_skeleton_utils import FullBodyBoneId, SkeletonType, get_bone_label
 
 # Params
 # video source library
@@ -164,10 +165,14 @@ def on_body_pose_message(message: bytes, state: AppState):
                 # Arbitrary timestamp for visualization timeline
                 rr.set_time_sequence("body_pose_timestamp", int(time.time() * 1000))
                 for bone in pose_data:
-                    rr.log(
-                        f"world/user/bones/{bone.id}",
-                        rr.Points3D(positions=[bone.position]),
-                    )
+                    bone_label = get_bone_label(SkeletonType.FullBody, bone.id)
+                    if bone_label and "Unknown" not in bone_label:
+                        entity_path = f"world/user/bones/{bone_label}"
+                        rr.log(
+                            entity_path,
+                            rr.Points3D(positions=[bone.position], class_ids=bone.id),
+                        )
+                        # rr.log(entity_path, rr.ClassId(bone.id))
 
     except Exception as e:
         print(f"Could not process body pose data: {e}")
@@ -215,6 +220,16 @@ if __name__ == "__main__":
 
         rr.init("xr-360-camera-streamer", spawn=True)
         rr.log("world", rr.ViewCoordinates.LEFT_HAND_Y_UP, static=True)  # Set Y as the up axis
+
+        # Create AnnotationContext for full body skeleton
+        # This provides the mapping from Id to Label for the rerun viewer
+        keypoint_annotations = [
+            rr.AnnotationInfo(id=member.value, label=member.name)
+            for member in FullBodyBoneId
+            # if member.name.startswith("FullBody_")  # NOTE: always true
+        ]
+        rr.log("world/user/bones", rr.AnnotationContext(keypoint_annotations), static=True)
+
         state_factory = partial(AppState, visualizer=rr)
 
     data_handlers = {

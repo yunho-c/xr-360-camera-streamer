@@ -1,16 +1,10 @@
 import enum
-from typing import Dict, Optional
+from typing import Union
 
-class BoneId(enum.IntEnum):
-    """
-    A Python enumeration that corresponds to the C# OVRSkeleton.BoneId enum,
-    used in VR/AR development for skeletal tracking.
-    """
-    # General
-    Invalid = -1
-    Max = 84
 
-    # Hand
+class HandBoneId(enum.IntEnum):
+    """Specifies the bone IDs for a legacy hand skeleton."""
+
     Hand_Start = 0
     Hand_WristRoot = 0
     Hand_ForearmStub = 1
@@ -39,7 +33,14 @@ class BoneId(enum.IntEnum):
     Hand_PinkyTip = 23
     Hand_End = 24
 
-    # XRHand
+    @classmethod
+    def _missing_(cls, value):
+        return "Hand_Unknown"
+
+
+class XRHandBoneId(enum.IntEnum):
+    """Specifies the bone IDs for an XR hand skeleton, following OpenXR standards."""
+
     XRHand_Start = 0
     XRHand_Palm = 0
     XRHand_Wrist = 1
@@ -70,7 +71,14 @@ class BoneId(enum.IntEnum):
     XRHand_Max = 26
     XRHand_End = 26
 
-    # Body
+    @classmethod
+    def _missing_(cls, value):
+        return "XRHand_Unknown"
+
+
+class BodyBoneId(enum.IntEnum):
+    """Specifies the bone IDs for a body skeleton."""
+
     Body_Start = 0
     Body_Root = 0
     Body_Hips = 1
@@ -144,7 +152,14 @@ class BoneId(enum.IntEnum):
     Body_RightHandLittleTip = 69
     Body_End = 70
 
-    # FullBody
+    @classmethod
+    def _missing_(cls, value):
+        return "Body_Unknown"
+
+
+class FullBodyBoneId(enum.IntEnum):
+    """Specifies the bone IDs for a full body skeleton, including legs and feet."""
+
     FullBody_Start = 0
     FullBody_Root = 0
     FullBody_Hips = 1
@@ -232,11 +247,19 @@ class BoneId(enum.IntEnum):
     FullBody_RightFootBall = 83
     FullBody_End = 84
 
+    @classmethod
+    def _missing_(cls, value):
+        return "FullBody_Unknown"
+
+
+# A type hint for any of the bone ID enums
+AnyBoneId = Union[HandBoneId, XRHandBoneId, BodyBoneId, FullBodyBoneId]
+
+
 class SkeletonType(enum.Enum):
-    """
-    A Python enumeration that corresponds to the C# OVRSkeleton.SkeletonType enum.
-    """
-    None_ = -1  # Using None_ to avoid conflict with Python's None keyword
+    """Corresponds to OVRSkeleton.SkeletonType, indicating the skeleton's nature."""
+
+    None_ = -1
     HandLeft = 0
     HandRight = 1
     Body = 2
@@ -244,137 +267,85 @@ class SkeletonType(enum.Enum):
     XRHandLeft = 4
     XRHandRight = 5
 
-# --- Mappings for get_bone_label ---
-# These dictionaries replicate the logic from the C# switch statements.
 
-_HAND_BONE_LABELS: Dict[BoneId, str] = {
-    BoneId.Hand_WristRoot: "Hand_WristRoot",
-    BoneId.Hand_ForearmStub: "Hand_ForearmStub",
-    BoneId.Hand_Thumb0: "Hand_Thumb0",
-    BoneId.Hand_Thumb1: "Hand_Thumb1",
-    BoneId.Hand_Thumb2: "Hand_Thumb2",
-    BoneId.Hand_Thumb3: "Hand_Thumb3",
-    BoneId.Hand_Index1: "Hand_Index1",
-    BoneId.Hand_Index2: "Hand_Index2",
-    BoneId.Hand_Index3: "Hand_Index3",
-    BoneId.Hand_Middle1: "Hand_Middle1",
-    BoneId.Hand_Middle2: "Hand_Middle2",
-    BoneId.Hand_Middle3: "Hand_Middle3",
-    BoneId.Hand_Ring1: "Hand_Ring1",
-    BoneId.Hand_Ring2: "Hand_Ring2",
-    BoneId.Hand_Ring3: "Hand_Ring3",
-    BoneId.Hand_Pinky0: "Hand_Pinky0",
-    BoneId.Hand_Pinky1: "Hand_Pinky1",
-    BoneId.Hand_Pinky2: "Hand_Pinky2",
-    BoneId.Hand_Pinky3: "Hand_Pinky3",
-    BoneId.Hand_MaxSkinnable: "Hand_ThumbTip",
-    BoneId.Hand_IndexTip: "Hand_IndexTip",
-    BoneId.Hand_MiddleTip: "Hand_MiddleTip",
-    BoneId.Hand_RingTip: "Hand_RingTip",
-    BoneId.Hand_PinkyTip: "Hand_PinkyTip",
-}
-
-_XRHAND_BONE_LABELS: Dict[BoneId, str] = {
-    BoneId.XRHand_Palm: "XRHand_Palm",
-    BoneId.XRHand_Wrist: "XRHand_Wrist",
-    BoneId.XRHand_ThumbMetacarpal: "XRHand_ThumbMetacarpal",
-    BoneId.XRHand_ThumbProximal: "XRHand_ThumbProximal",
-    BoneId.XRHand_ThumbDistal: "XRHand_ThumbDistal",
-    BoneId.XRHand_ThumbTip: "XRHand_ThumbTip",
-    BoneId.XRHand_IndexMetacarpal: "XRHand_IndexMetacarpal",
-    BoneId.XRHand_IndexProximal: "XRHand_IndexProximal",
-    BoneId.XRHand_IndexIntermediate: "XRHand_IndexIntermediate",
-    BoneId.XRHand_IndexDistal: "XRHand_IndexDistal",
-    BoneId.XRHand_IndexTip: "XRHand_IndexTip",
-    BoneId.XRHand_MiddleMetacarpal: "XRHand_MiddleMetacarpal",
-    BoneId.XRHand_MiddleProximal: "XRHand_MiddleProximal",
-    BoneId.XRHand_MiddleIntermediate: "XRHand_MiddleIntermediate",
-    BoneId.XRHand_MiddleDistal: "XRHand_MiddleDistal",
-    BoneId.XRHand_MiddleTip: "XRHand_MiddleTip",
-    BoneId.XRHand_RingMetacarpal: "XRHand_RingMetacarpal",
-    BoneId.XRHand_RingProximal: "XRHand_RingProximal",
-    BoneId.XRHand_RingIntermediate: "XRHand_RingIntermediate",
-    BoneId.XRHand_RingDistal: "XRHand_RingDistal",
-    BoneId.XRHand_RingTip: "XRHand_RingTip",
-    BoneId.XRHand_LittleMetacarpal: "XRHand_LittleMetacarpal",
-    BoneId.XRHand_LittleProximal: "XRHand_LittleProximal",
-    BoneId.XRHand_LittleIntermediate: "XRHand_LittleIntermediate",
-    BoneId.XRHand_LittleDistal: "XRHand_LittleDistal",
-    BoneId.XRHand_LittleTip: "XRHand_LittleTip",
-}
-
-_BODY_BONE_LABELS: Dict[BoneId, str] = {
-    member: f"Body_{member.name.split('_', 1)[1]}" for member in BoneId if member.name.startswith("Body_")
-}
-
-_FULLBODY_BONE_LABELS: Dict[BoneId, str] = {
-    member: f"FullBody_{member.name.split('_', 1)[1]}" for member in BoneId if member.name.startswith("FullBody_")
-}
-
-
-def get_bone_label(skeleton_type: SkeletonType, bone_id: BoneId) -> Optional[str]:
+def get_bone_label(skeleton_type: SkeletonType, bone_id: int) -> str:
     """
-    Translates a BoneId to a human-readable string label based on the SkeletonType.
-    This is a Python port of the C# OVRSkeleton.BoneLabelFromBoneId method.
+    Returns the string name of any bone from the specific BoneId enums.
 
     Args:
-        skeleton_type: The type of skeleton the bone belongs to.
-        bone_id: The ID of the bone to label.
+        skeleton_type: The type of skeleton.
+        bone_id: The integer ID of the bone.
 
     Returns:
-        A string label for the bone, or a default/unknown string if not found.
+        The official string name of the bone.
     """
+    enum_class = None
     if skeleton_type in (SkeletonType.HandLeft, SkeletonType.HandRight):
-        return _HAND_BONE_LABELS.get(bone_id, "Hand_Unknown")
+        enum_class = HandBoneId
+    elif skeleton_type in (SkeletonType.XRHandLeft, SkeletonType.XRHandRight):
+        enum_class = XRHandBoneId
+    elif skeleton_type == SkeletonType.Body:
+        enum_class = BodyBoneId
+    elif skeleton_type == SkeletonType.FullBody:
+        enum_class = FullBodyBoneId
+    else:
+        return "Skeleton_Unknown"
 
-    if skeleton_type in (SkeletonType.XRHandLeft, SkeletonType.XRHandRight):
-        # Note: The original C# code has a complex mapping for XRHand that re-uses
-        # Hand_* IDs. For clarity and directness in Python, it's better to use
-        # the specific XRHand_* IDs if you have them. If you only have the 0-25 range,
-        # you would need a more complex mapping like the C# version.
-        # This implementation assumes you can use the correct XRHand_* BoneId members.
-        return _XRHAND_BONE_LABELS.get(bone_id, "XRHand_Unknown")
-
-    if skeleton_type == SkeletonType.Body:
-        return _BODY_BONE_LABELS.get(bone_id, "Body_Unknown")
-
-    if skeleton_type == SkeletonType.FullBody:
-        return _FULLBODY_BONE_LABELS.get(bone_id, "FullBody_Unknown")
-
-    return "Skeleton_Unknown"
+    bone = enum_class(bone_id)
+    # The _missing_ method returns a string for unknown bone IDs.
+    if not isinstance(bone, enum.Enum):
+        return str(bone)
+    return bone.name
 
 
 # --- Example Usage ---
-if __name__ == '__main__':
-    print("--- Basic BoneId Info ---")
-    wrist_bone = BoneId.Hand_WristRoot
-    print(f"Wrist bone: {wrist_bone.name}, Value: {wrist_bone.value}")
-    thumb_tip_bone = BoneId(19)
-    print(f"Bone with value 19: {thumb_tip_bone.name}")
+if __name__ == "__main__":
+    print("--- Refactored Skeleton Enums Example ---")
+
+    # Example 1: Accessing a specific bone and its value
+    wrist_bone = HandBoneId.Hand_WristRoot
+    print(f"Hand bone: {wrist_bone.name}, Value: {wrist_bone.value}")
+
+    # Example 2: Looking up a bone by its value in a specific enum
+    # Note: Hand_ThumbTip and Hand_MaxSkinnable share value 19
+    thumb_tip_bone = HandBoneId(19)
+    print(f"Hand bone with value 19: {thumb_tip_bone.name} (Canonical is Hand_MaxSkinnable)")
+
+    # Example 3: Demonstrating type safety and clarity
+    spine_bone = BodyBoneId.Body_SpineUpper
+    print(
+        "Body bone: "
+        f"{get_bone_label(SkeletonType.Body, spine_bone.value)}, "
+        f"Value: {spine_bone.value}"
+    )
+
+    xr_thumb_tip = XRHandBoneId.XRHand_ThumbTip
+    # Note: XRHand can be for left or right, the enum is the same.
+    print(
+        "XR Hand bone: "
+        f"{get_bone_label(SkeletonType.XRHandLeft, xr_thumb_tip.value)}, "
+        f"Value: {xr_thumb_tip.value}"
+    )
+
+    # Aliasing is now contained within each enum
     print("-" * 20)
+    print("Demonstrating aliasing within a single enum:")
+    print(
+        f"Is Hand_WristRoot the same as Hand_Start? {HandBoneId.Hand_WristRoot is HandBoneId.Hand_Start}"
+    )
 
-    print("\n--- Using get_bone_label ---")
-    # Example 1: Get label for a standard hand bone
-    bone_id_to_check = BoneId.Hand_IndexTip
-    skeleton = SkeletonType.HandRight
-    label = get_bone_label(skeleton, bone_id_to_check)
-    print(f"The label for {bone_id_to_check.name} in a {skeleton.name} is: '{label}'")
+    print("\nDemonstrating that different enums are distinct:")
+    try:
+        # This comparison across different enum types is not meaningful
+        # and highlights the improved type safety.
+        print("Comparing HandBoneId.Hand_Start to BodyBoneId.Body_Start...")
+        are_equal = HandBoneId.Hand_Start == BodyBoneId.Body_Start
+        print(f"Are they equal? {are_equal}")  # This will likely be False
 
-    # Example 2: Get label for a full body bone
-    bone_id_to_check = BoneId.FullBody_SpineUpper
-    skeleton = SkeletonType.FullBody
-    label = get_bone_label(skeleton, bone_id_to_check)
-    print(f"The label for {bone_id_to_check.name} in a {skeleton.name} is: '{label}'")
+    except Exception as e:
+        print(f"An error occurred: {e}")
 
-    # Example 3: Get label for an XR hand bone
-    bone_id_to_check = BoneId.XRHand_ThumbTip
-    skeleton = SkeletonType.XRHandLeft
-    label = get_bone_label(skeleton, bone_id_to_check)
-    print(f"The label for {bone_id_to_check.name} in a {skeleton.name} is: '{label}'")
-
-    # Example 4: Show an unknown bone
-    bone_id_to_check = BoneId.FullBody_RightFootBall
-    skeleton = SkeletonType.HandLeft # Incorrect skeleton type for this bone
-    label = get_bone_label(skeleton, bone_id_to_check)
-    print(f"Trying to find {bone_id_to_check.name} in a {skeleton.name}: '{label}'")
-
+    # Example of how to robustly check for a bone's identity
+    selected_bone = BodyBoneId.Body_Root
+    if selected_bone is BodyBoneId.Body_Root:
+        print("\nCorrectly identified Body_Root using 'is'.")
