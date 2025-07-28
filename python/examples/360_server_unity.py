@@ -1,5 +1,4 @@
-import argparse
-import asyncio
+import argparse  # noqa: I001
 import json
 import os
 import struct
@@ -15,6 +14,7 @@ from av import VideoFrame
 from xr_360_camera_streamer.sources import FFmpegFileSource, OpenCVFileSource
 from xr_360_camera_streamer.streaming import WebRTCServer
 from xr_360_camera_streamer.transforms import EquilibEqui2Pers
+
 from ovr_skeleton_utils import FullBodyBoneId, SkeletonType, get_bone_label
 
 # Params
@@ -25,6 +25,27 @@ VIDEO_SOURCE = FFmpegFileSource
 # body pose visualization
 VISUALIZE = True
 # VISUALIZE = False
+
+# Coordinate system conversion for Unity data
+CONVERT_UNITY_COORDS = True
+
+
+def convert_unity_to_right_handed_z_up(
+    position: tuple[float, float, float],
+    rotation: tuple[float, float, float, float],
+) -> tuple[tuple[float, float, float], tuple[float, float, float, float]]:
+    """
+    Converts position and rotation from Unity's left-handed, Y-up coordinate system
+    to a right-handed, Z-up coordinate system (+X Forward, +Y Left, +Z Up).
+    """
+    # Position conversion: Unity (x,y,z) -> (z, -x, y)
+    new_position = (position[2], -position[0], position[1])
+
+    # Rotation quaternion conversion: Unity (qx,qy,qz,qw) -> (-qz, qx, -qy, qw)
+    qx, qy, qz, qw = rotation
+    new_rotation = (-qz, qx, -qy, qw)
+
+    return new_position, new_rotation
 
 
 # Define a state object for orientation
@@ -159,6 +180,12 @@ def on_body_pose_message(message: bytes, state: AppState):
             pose_data = deserialize_pose_data(message)
             # print(f"Received {len(pose_data)} bones")
 
+            if CONVERT_UNITY_COORDS:
+                for bone in pose_data:
+                    bone.position, bone.rotation = convert_unity_to_right_handed_z_up(
+                        bone.position, bone.rotation
+                    )
+
             # Log to rerun
             if state.visualizer:
                 rr = state.visualizer
@@ -219,7 +246,12 @@ if __name__ == "__main__":
             exit(1)
 
         rr.init("xr-360-camera-streamer", spawn=True)
-        rr.log("world", rr.ViewCoordinates.LEFT_HAND_Y_UP, static=True)  # Set Y as the up axis
+        if CONVERT_UNITY_COORDS:
+            # Set coordinate system to right-handed, Z-up
+            rr.log("world", rr.ViewCoordinates.FLU, static=True)  # FLU = Forward, Left, Up
+        else:
+            rr.log("world", rr.ViewCoordinates.LEFT_HAND_Y_UP, static=True)  # Set Y as the up axis
+            print("Warning: rerun currently does not support left-handed coordinate systems.")
 
         # Create AnnotationContext for full body skeleton
         # This provides the mapping from Id to Label for the rerun viewer
