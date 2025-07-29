@@ -31,6 +31,8 @@ VIDEO_SOURCE = FFmpegFileSource
 VISUALIZE = True
 # VISUALIZE = False
 
+VIZ_POINT_RADIUS = 0.01
+
 # Coordinate system conversion for Unity data
 CONVERT_UNITY_COORDS = True
 
@@ -212,6 +214,7 @@ def on_body_pose_message(message: bytes, state: AppState):
                         positions=positions,
                         keypoint_ids=keypoint_ids,
                         class_ids=SkeletonType.FullBody.value,
+                        radii=VIZ_POINT_RADIUS,
                     ),
                 )
 
@@ -262,7 +265,7 @@ if __name__ == "__main__":
         rr.init("xr-360-camera-streamer", spawn=True)
         if CONVERT_UNITY_COORDS:
             # Set coordinate system to right-handed, Z-up
-            rr.log("world", rr.ViewCoordinates.FLU, static=True)  # FLU = Forward, Left, Up
+            rr.log("world", rr.ViewCoordinates.RIGHT_HAND_Z_UP, static=True)  # NOTE: same as FLU
         else:
             rr.log("world", rr.ViewCoordinates.LEFT_HAND_Y_UP, static=True)  # Set Y as the up axis
             print("Warning: rerun currently does not support left-handed coordinate systems.")
@@ -276,7 +279,8 @@ if __name__ == "__main__":
                 rr.ClassDescription(
                     info=rr.AnnotationInfo(id=SkeletonType.FullBody.value, label="FullBody"),
                     keypoint_annotations=[
-                        rr.AnnotationInfo(id=member.value, label=member.name) for member in FullBodyBoneId
+                        rr.AnnotationInfo(id=member.value, label=member.name)
+                        for member in FullBodyBoneId
                     ],
                     keypoint_connections=FULL_BODY_SKELETON_CONNECTIONS,
                 )
