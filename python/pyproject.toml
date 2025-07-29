@@ -60,7 +60,8 @@ dev = [
     "hatch",
 ]
 viz = [
-    "rerun-sdk"
+    "rerun-sdk",
+    "matplotlib"
 ]
 # To install: pip install -e .[dev,viz]
 

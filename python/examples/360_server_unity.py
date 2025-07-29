@@ -257,9 +257,10 @@ if __name__ == "__main__":
     state_factory = AppState
     if VISUALIZE or args.visualize:
         try:
+            import matplotlib.cm as cm
             import rerun as rr
         except ImportError:
-            print("Please install rerun SDK: pip install -e .[viz]")
+            print("Please install OpenCV, rerun SDK and matplotlib: pip install -e .[viz]")
             exit(1)
 
         rr.init("xr-360-camera-streamer", spawn=True)
@@ -273,15 +274,29 @@ if __name__ == "__main__":
         # Create a ClassDescription for the full body skeleton.
         # This provides the mapping from Id to Label for the rerun viewer.
         # The keypoint_connections will be used to draw the skeleton.
+        # colormap = cm.get_cmap("viridis")
+        colormap = cm.get_cmap("jet")
+        keypoint_annotations = [
+            rr.AnnotationInfo(
+                id=member.value,
+                label=member.name,
+                color=(np.array(colormap(member.value / FullBodyBoneId.FullBody_End)) * 255).astype(
+                    np.uint8
+                ),
+            )
+            for member in FullBodyBoneId
+        ]
+
         rr.log(
             "/",  # Log to the root path
             rr.AnnotationContext(
                 rr.ClassDescription(
-                    info=rr.AnnotationInfo(id=SkeletonType.FullBody.value, label="FullBody"),
-                    keypoint_annotations=[
-                        rr.AnnotationInfo(id=member.value, label=member.name)
-                        for member in FullBodyBoneId
-                    ],
+                    info=rr.AnnotationInfo(
+                        id=SkeletonType.FullBody.value,
+                        label="SkeletonType.FullBody",
+                        color=np.array([251, 251, 251, 251], dtype=np.uint8),
+                    ),
+                    keypoint_annotations=keypoint_annotations,
                     keypoint_connections=FULL_BODY_SKELETON_CONNECTIONS,
                 )
             ),
