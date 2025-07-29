@@ -1,5 +1,4 @@
-import argparse
-import asyncio
+import argparse  # noqa: I001
 import json
 import os
 import struct
@@ -16,6 +15,13 @@ from xr_360_camera_streamer.sources import FFmpegFileSource, OpenCVFileSource
 from xr_360_camera_streamer.streaming import WebRTCServer
 from xr_360_camera_streamer.transforms import EquilibEqui2Pers
 
+from ovr_skeleton_utils import (
+    FULL_BODY_SKELETON_CONNECTIONS,
+    FullBodyBoneId,
+    SkeletonType,
+    get_bone_label,
+)
+
 # Params
 # video source library
 VIDEO_SOURCE = FFmpegFileSource
@@ -24,6 +30,29 @@ VIDEO_SOURCE = FFmpegFileSource
 # body pose visualization
 VISUALIZE = True
 # VISUALIZE = False
+
+VIZ_POINT_RADIUS = 0.01
+
+# Coordinate system conversion for Unity data
+CONVERT_UNITY_COORDS = True
+
+
+def convert_unity_to_right_handed_z_up(
+    position: tuple[float, float, float],
+    rotation: tuple[float, float, float, float],
+) -> tuple[tuple[float, float, float], tuple[float, float, float, float]]:
+    """
+    Converts position and rotation from Unity's left-handed, Y-up coordinate system
+    to a right-handed, Z-up coordinate system (+X Forward, +Y Left, +Z Up).
+    """
+    # Position conversion: Unity (x,y,z) -> (z, -x, y)
+    new_position = (position[2], -position[0], position[1])
+
+    # Rotation quaternion conversion: Unity (qx,qy,qz,qw) -> (-qz, qx, -qy, qw)
+    qx, qy, qz, qw = rotation
+    new_rotation = (-qz, qx, -qy, qw)
+
+    return new_position, new_rotation
 
 
 # Define a state object for orientation
@@ -158,16 +187,36 @@ def on_body_pose_message(message: bytes, state: AppState):
             pose_data = deserialize_pose_data(message)
             # print(f"Received {len(pose_data)} bones")
 
+            if CONVERT_UNITY_COORDS:
+                for bone in pose_data:
+                    bone.position, bone.rotation = convert_unity_to_right_handed_z_up(
+                        bone.position, bone.rotation
+                    )
+
             # Log to rerun
             if state.visualizer:
                 rr = state.visualizer
                 # Arbitrary timestamp for visualization timeline
                 rr.set_time_sequence("body_pose_timestamp", int(time.time() * 1000))
+
+                positions = []
+                keypoint_ids = []
                 for bone in pose_data:
-                    rr.log(
-                        f"world/user/bones/{bone.id}",
-                        rr.Points3D(positions=[bone.position]),
-                    )
+                    # NOTE: not all bones are being tracked, so we need to filter
+                    bone_label = get_bone_label(SkeletonType.FullBody, bone.id)
+                    if bone_label and "Unknown" not in bone_label:
+                        positions.append(bone.position)
+                        keypoint_ids.append(bone.id)
+
+                rr.log(
+                    "world/user/bones",
+                    rr.Points3D(
+                        positions=positions,
+                        keypoint_ids=keypoint_ids,
+                        class_ids=SkeletonType.FullBody.value,
+                        radii=VIZ_POINT_RADIUS,
+                    ),
+                )
 
     except Exception as e:
         print(f"Could not process body pose data: {e}")
@@ -208,13 +257,52 @@ if __name__ == "__main__":
     state_factory = AppState
     if VISUALIZE or args.visualize:
         try:
+            import matplotlib.cm as cm
             import rerun as rr
         except ImportError:
-            print("Please install rerun SDK: pip install -e .[viz]")
+            print("Please install OpenCV, rerun SDK and matplotlib: pip install -e .[viz]")
             exit(1)
 
         rr.init("xr-360-camera-streamer", spawn=True)
-        rr.log("world", rr.ViewCoordinates.LEFT_HAND_Y_UP, static=True)  # Set Y as the up axis
+        if CONVERT_UNITY_COORDS:
+            # Set coordinate system to right-handed, Z-up
+            rr.log("world", rr.ViewCoordinates.RIGHT_HAND_Z_UP, static=True)  # NOTE: same as FLU
+        else:
+            rr.log("world", rr.ViewCoordinates.LEFT_HAND_Y_UP, static=True)  # Set Y as the up axis
+            print("Warning: rerun currently does not support left-handed coordinate systems.")
+
+        # Create a ClassDescription for the full body skeleton.
+        # This provides the mapping from Id to Label for the rerun viewer.
+        # The keypoint_connections will be used to draw the skeleton.
+        # colormap = cm.get_cmap("viridis")
+        colormap = cm.get_cmap("jet")
+        keypoint_annotations = [
+            rr.AnnotationInfo(
+                id=member.value,
+                label=member.name,
+                color=(np.array(colormap(member.value / FullBodyBoneId.FullBody_End)) * 255).astype(
+                    np.uint8
+                ),
+            )
+            for member in FullBodyBoneId
+        ]
+
+        rr.log(
+            "/",  # Log to the root path
+            rr.AnnotationContext(
+                rr.ClassDescription(
+                    info=rr.AnnotationInfo(
+                        id=SkeletonType.FullBody.value,
+                        label="SkeletonType.FullBody",
+                        color=np.array([251, 251, 251, 251], dtype=np.uint8),
+                    ),
+                    keypoint_annotations=keypoint_annotations,
+                    keypoint_connections=FULL_BODY_SKELETON_CONNECTIONS,
+                )
+            ),
+            static=True,
+        )
+
         state_factory = partial(AppState, visualizer=rr)
 
     data_handlers = {
