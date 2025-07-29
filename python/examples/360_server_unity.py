@@ -191,15 +191,20 @@ def on_body_pose_message(message: bytes, state: AppState):
                 rr = state.visualizer
                 # Arbitrary timestamp for visualization timeline
                 rr.set_time_sequence("body_pose_timestamp", int(time.time() * 1000))
+
+                positions = []
+                class_ids = []
                 for bone in pose_data:
+                    # NOTE: not all bones are being tracked, so we need to filter
                     bone_label = get_bone_label(SkeletonType.FullBody, bone.id)
                     if bone_label and "Unknown" not in bone_label:
-                        entity_path = f"world/user/bones/{bone_label}"
-                        rr.log(
-                            entity_path,
-                            rr.Points3D(positions=[bone.position], class_ids=bone.id),
-                        )
-                        # rr.log(entity_path, rr.ClassId(bone.id))
+                        positions.append(bone.position)
+                        class_ids.append(bone.id)
+
+                rr.log(
+                    "world/user/bones",
+                    rr.Points3D(positions=positions, class_ids=class_ids),
+                )
 
     except Exception as e:
         print(f"Could not process body pose data: {e}")
