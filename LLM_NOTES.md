@@ -689,3 +689,77 @@ This fundamental difference means that a 1:1 port of the C# enum structure is no
 This reinforces why refactoring to separate enums is the correct, "Pythonic" path forward. It aligns with Python's emphasis on type safety and clarity, avoiding the pitfalls of trying to force a C# pattern into Python.
 
 I will now proceed with refactoring the code.
+
+---
+---
+
+Yes, it is possible to inspect bone ID and labels with the current batched implementation. However, the `rerun` logging can be made more idiomatic to ensure robust labeling.
+
+The current implementation logs each bone as a separate class. A better approach is to define a single "skeleton" class and log the bones as keypoints within that class. This allows `rerun` to associate the correct labels with each point upon inspection.
+
+First, I will read the [`ovr_skeleton_utils.py`](python/examples/ovr_skeleton_utils.py) file to understand the `SkeletonType` enum, which is needed for the new `ClassDescription`.
+
+I have read the contents of [`ovr_skeleton_utils.py`](python/examples/ovr_skeleton_utils.py:1) and can see the definitions for `FullBodyBoneId` and `SkeletonType`. I will now modify [`python/examples/360_server_unity.py`](python/examples/360_server_unity.py:1) to log a `ClassDescription` for the full body skeleton, including keypoint annotations and connections. This will be logged once statically. Then, in [`on_body_pose_message`](python/examples/360_server_unity.py:177), I will log the `Points3D` with `class_ids` and `keypoint_ids` to associate the points with the new `ClassDescription`.
+
+I will now apply these changes.
+
+---
+---
+
+> Could you explain the concepts of class and keypoint in rerun?
+
+---
+
+Of course. Here is an explanation of "class" and "keypoint" in `rerun`:
+
+### Class
+
+In `rerun`, a **Class** is used to categorize and label a group of related data points. Think of it as a template or a type for an object you want to visualize.
+
+*   **Purpose**: It allows you to assign a single identity, like "FullBody" skeleton, to a collection of points.
+*   **How it works**: You define a `ClassDescription` with an `info` field containing an `id` and a `label`. Then, when you log your points (e.g., `rr.Points3D`), you pass that `id` as the `class_ids` parameter. This tells `rerun` that all these points belong to the "FullBody" class.
+
+In the modified code, I created a single class for the skeleton:
+```python
+rr.ClassDescription(
+    info=rr.AnnotationInfo(id=SkeletonType.FullBody.value, label="FullBody"),
+    ...
+)
+```
+And then assigned all the bone points to this class when logging:
+```python
+rr.log(
+    "world/user/bones",
+    rr.Points3D(
+        ...,
+        class_ids=SkeletonType.FullBody.value,
+    ),
+)
+```
+
+### Keypoint
+
+A **Keypoint** is a specific, labeled point within a Class. For a "FullBody" skeleton class, the individual bones (like "Head", "LeftShoulder", etc.) are the keypoints.
+
+*   **Purpose**: Keypoints allow you to identify and label individual parts of a larger object.
+*   **How it works**: Inside your `ClassDescription`, you provide a list of `keypoint_annotations`. Each `AnnotationInfo` in this list maps a `keypoint_id` (like `FullBodyBoneId.FullBody_Head.value`) to a `label` (like `"FullBody_Head"`). When you log your `Points3D`, you provide a list of `keypoint_ids` corresponding to each point's position. When you hover over a point in the `rerun` viewer, it uses this mapping to show the correct label.
+
+In the modified code, this is how keypoints are defined:
+```python
+keypoint_annotations=[
+    rr.AnnotationInfo(id=member.value, label=member.name) for member in FullBodyBoneId
+],
+```
+And this is how they are logged for each bone position:
+```python
+rr.log(
+    "world/user/bones",
+    rr.Points3D(
+        positions=positions,
+        keypoint_ids=keypoint_ids,
+        ...
+    ),
+)
+```
+
+By using classes and keypoints together, you create a structured and well-annotated visualization, making it easy to identify individual components of a complex object in the `rerun` viewer.

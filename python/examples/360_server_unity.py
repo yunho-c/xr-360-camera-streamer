@@ -15,7 +15,12 @@ from xr_360_camera_streamer.sources import FFmpegFileSource, OpenCVFileSource
 from xr_360_camera_streamer.streaming import WebRTCServer
 from xr_360_camera_streamer.transforms import EquilibEqui2Pers
 
-from ovr_skeleton_utils import FullBodyBoneId, SkeletonType, get_bone_label
+from ovr_skeleton_utils import (
+    FULL_BODY_SKELETON_CONNECTIONS,
+    FullBodyBoneId,
+    SkeletonType,
+    get_bone_label,
+)
 
 # Params
 # video source library
@@ -193,17 +198,21 @@ def on_body_pose_message(message: bytes, state: AppState):
                 rr.set_time_sequence("body_pose_timestamp", int(time.time() * 1000))
 
                 positions = []
-                class_ids = []
+                keypoint_ids = []
                 for bone in pose_data:
                     # NOTE: not all bones are being tracked, so we need to filter
                     bone_label = get_bone_label(SkeletonType.FullBody, bone.id)
                     if bone_label and "Unknown" not in bone_label:
                         positions.append(bone.position)
-                        class_ids.append(bone.id)
+                        keypoint_ids.append(bone.id)
 
                 rr.log(
                     "world/user/bones",
-                    rr.Points3D(positions=positions, class_ids=class_ids),
+                    rr.Points3D(
+                        positions=positions,
+                        keypoint_ids=keypoint_ids,
+                        class_ids=SkeletonType.FullBody.value,
+                    ),
                 )
 
     except Exception as e:
@@ -258,14 +267,22 @@ if __name__ == "__main__":
             rr.log("world", rr.ViewCoordinates.LEFT_HAND_Y_UP, static=True)  # Set Y as the up axis
             print("Warning: rerun currently does not support left-handed coordinate systems.")
 
-        # Create AnnotationContext for full body skeleton
-        # This provides the mapping from Id to Label for the rerun viewer
-        keypoint_annotations = [
-            rr.AnnotationInfo(id=member.value, label=member.name)
-            for member in FullBodyBoneId
-            # if member.name.startswith("FullBody_")  # NOTE: always true
-        ]
-        rr.log("world/user/bones", rr.AnnotationContext(keypoint_annotations), static=True)
+        # Create a ClassDescription for the full body skeleton.
+        # This provides the mapping from Id to Label for the rerun viewer.
+        # The keypoint_connections will be used to draw the skeleton.
+        rr.log(
+            "/",  # Log to the root path
+            rr.AnnotationContext(
+                rr.ClassDescription(
+                    info=rr.AnnotationInfo(id=SkeletonType.FullBody.value, label="FullBody"),
+                    keypoint_annotations=[
+                        rr.AnnotationInfo(id=member.value, label=member.name) for member in FullBodyBoneId
+                    ],
+                    keypoint_connections=FULL_BODY_SKELETON_CONNECTIONS,
+                )
+            ),
+            static=True,
+        )
 
         state_factory = partial(AppState, visualizer=rr)
 
