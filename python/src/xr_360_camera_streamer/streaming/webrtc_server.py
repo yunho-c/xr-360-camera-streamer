@@ -2,12 +2,13 @@ import asyncio
 import inspect
 import uuid
 from contextlib import asynccontextmanager
-from functools import partial, wraps
+from functools import wraps
 
 import uvicorn
 from aiortc import RTCPeerConnection, RTCSessionDescription
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+
 from .. import logger
 
 
@@ -124,7 +125,7 @@ class WebRTCServer:
         pc = RTCPeerConnection()
         pc_id = f"PeerConnection({uuid.uuid4()})"
         self.pcs.add(pc)
-        logger.info(f"{pc_id}: Created for {request.client.host}")
+        logger.info(f"{pc_id}: Created PeerConnection for {request.client.host}")
 
         # Create a state object for peer connection
         state = None
@@ -157,7 +158,7 @@ class WebRTCServer:
 
                 @channel.on("message")
                 async def on_message(message):
-                    logger.info(f"{pc_id}: Message on '{label}': {message}")
+                    logger.debug(f"{pc_id}: Message on '{label}': {message}")
                     await handler(message=message, state=state)
             else:
                 logger.warning(f"{pc_id}: No handler registered for data channel '{label}'.")
@@ -188,5 +189,4 @@ class WebRTCServer:
 
     def run(self):
         """Starts the web server."""
-        logger.info(f"Starting server on http://{self.host}:{self.port}")
         uvicorn.run(self.app, host=self.host, port=self.port)

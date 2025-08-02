@@ -4,9 +4,9 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-from .. import logger
 
-from xr_360_camera_streamer.sources import VideoSource
+from .. import logger
+from .base import VideoSource
 
 _available_hw_accels = None
 

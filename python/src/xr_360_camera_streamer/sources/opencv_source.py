@@ -3,7 +3,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from xr_360_camera_streamer.sources import VideoSource
+from .base import VideoSource
 
 
 class OpenCVFileSource(VideoSource):
