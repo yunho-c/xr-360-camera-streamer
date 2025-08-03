@@ -5,6 +5,8 @@
     <style>
         body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding: 1em; }
         video { background: black; border: 1px solid grey; margin-bottom: 1em; }
+        #stats-container { width: 80%; max-width: 600px; }
+        pre { background: #eee; padding: 1em; border-radius: 5px; }
     </style>
 </head>
 <body>
@@ -13,16 +15,103 @@
     <video id="video" autoplay="true" playsinline="true" width="1280" height="720"></video>
     <button id="start">Start Connection</button>
 
+    <hr style="width: 80%; margin: 2em 0;">
+    <div id="stats-container">
+        <h3>Connection Details</h3>
+        <pre id="stats-display">Not connected</pre>
+    </div>
+
     <script>
         const startButton = document.getElementById('start');
         const videoElement = document.getElementById('video');
         let pc = null;
+        let statsInterval = null;
+        let startTime = null;
+
+        const statsDisplay = document.getElementById('stats-display');
+
+        const updateStats = async () => {
+            if (!pc) return;
+
+            const statsReport = await pc.getStats();
+            let statsText = 'Waiting for video...';
+
+            let inboundRtp;
+            statsReport.forEach(report => {
+                if (report.type === 'inbound-rtp' && report.kind === 'video') {
+                    inboundRtp = report;
+                }
+            });
+
+            if (inboundRtp) {
+                const codec = statsReport.get(inboundRtp.codecId);
+                const videoTime = videoElement.currentTime;
+                statsText = `Video Timestamp: ${videoTime.toFixed(2)}s\n`;
+
+                if (startTime) {
+                    const wallClockTime = (performance.now() - startTime) / 1000;
+                    statsText += `Wall Clock Time: ${wallClockTime.toFixed(2)}s\n`;
+                    if (wallClockTime > 0) {
+                        const realTimeFactor = videoTime / wallClockTime;
+                        statsText += `Real-time Factor: ${realTimeFactor.toFixed(2)}\n`;
+                    }
+                }
+
+                statsText += `Resolution: ${inboundRtp.frameWidth}x${inboundRtp.frameHeight} @ ${inboundRtp.framesPerSecond || 0}fps\n`;
+                if (codec) {
+                    statsText += `Codec: ${codec.mimeType.split('/')[1]}\n`;
+                }
+                statsText += `Jitter: ${(inboundRtp.jitter * 1000).toFixed(2)} ms\n`;
+                statsText += `Packets Lost: ${inboundRtp.packetsLost}\n`;
+
+                let rtt = 'N/A';
+                statsReport.forEach(stat => {
+                    if (stat.type === 'candidate-pair' && stat.state === 'succeeded' && stat.currentRoundTripTime) {
+                        rtt = `${(stat.currentRoundTripTime * 1000).toFixed(2)} ms`;
+                    }
+                });
+                statsText += `Latency (RTT): ${rtt}\n`;
+            } else if (videoElement.srcObject) {
+                const videoTime = videoElement.currentTime;
+                statsText = `Video Timestamp: ${videoTime.toFixed(2)}s\n`;
+                if (startTime) {
+                    const wallClockTime = (performance.now() - startTime) / 1000;
+                    statsText += `Wall Clock Time: ${wallClockTime.toFixed(2)}s\n`;
+                    if (wallClockTime > 0) {
+                        const realTimeFactor = videoTime / wallClockTime;
+                        statsText += `Real-time Factor: ${realTimeFactor.toFixed(2)}\n`;
+                    }
+                }
+                statsText += 'Waiting for stats...';
+            }
+
+            statsDisplay.textContent = statsText;
+        };
 
         const start = async () => {
             pc = new RTCPeerConnection();
+            statsDisplay.textContent = 'Connecting...';
+
+            pc.onconnectionstatechange = () => {
+                if (!pc) return;
+                statsDisplay.textContent = `Connection state: ${pc.connectionState}`;
+                if (pc.connectionState === 'disconnected' || pc.connectionState === 'closed' || pc.connectionState === 'failed') {
+                    if (statsInterval) {
+                        clearInterval(statsInterval);
+                        statsInterval = null;
+                    }
+                }
+            };
 
             pc.ontrack = (event) => {
                 videoElement.srcObject = event.streams[0];
+                videoElement.onplaying = () => {
+                    if (!startTime) {
+                        startTime = performance.now();
+                    }
+                };
+                if (statsInterval) clearInterval(statsInterval);
+                statsInterval = setInterval(updateStats, 1000);
             };
 
             pc.addTransceiver('video', { direction: 'recvonly' });

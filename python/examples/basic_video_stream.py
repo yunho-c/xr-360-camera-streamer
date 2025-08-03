@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 
 from xr_360_camera_streamer.sources import FFmpegFileSource
 from xr_360_camera_streamer.streaming import WebRTCServer
+from xr_360_camera_streamer.utils.codecs import maybe_enable_hardware_acceleration
 
 
 # Define a simple video track that streams a file
@@ -51,7 +52,7 @@ def create_video_track():
         Path(__file__).parents[2],
         "xr-360-streamer-assets",
         "videos",
-        "360_video.mp4",
+        "test_video.mp4",
     )
 
     if not os.path.exists(video_path):
@@ -68,6 +69,9 @@ def create_video_track():
 
 # Start server
 if __name__ == "__main__":
+    # Attempt to enable hardware acceleration by monkey-patching the encoder
+    maybe_enable_hardware_acceleration()
+
     # No state or data channels needed for this simple example
     server = WebRTCServer(
         video_track_factory=create_video_track,

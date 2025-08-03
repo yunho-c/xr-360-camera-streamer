@@ -88,7 +88,8 @@
 
             if (inboundRtp) {
                 const codec = statsReport.get(inboundRtp.codecId);
-                statsText = `Resolution: ${inboundRtp.frameWidth}x${inboundRtp.frameHeight} @ ${inboundRtp.framesPerSecond || 0}fps\n`;
+                statsText = `Timestamp: ${videoElement.currentTime.toFixed(2)}s\n`;
+                statsText += `Resolution: ${inboundRtp.frameWidth}x${inboundRtp.frameHeight} @ ${inboundRtp.framesPerSecond || 0}fps\n`;
                 if (codec) {
                     statsText += `Codec: ${codec.mimeType.split('/')[1]}\n`;
                 }
@@ -102,6 +103,8 @@
                     }
                 });
                 statsText += `Latency (RTT): ${rtt}\n`;
+            } else if (videoElement.srcObject) {
+                statsText = `Timestamp: ${videoElement.currentTime.toFixed(2)}s\nWaiting for stats...`;
             }
 
             statsDisplay.textContent = statsText;

@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from functools import wraps
 
 import uvicorn
-from aiortc import RTCPeerConnection, RTCSessionDescription
+from aiortc import RTCPeerConnection, RTCSessionDescription, RTCConfiguration
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
@@ -25,6 +25,7 @@ class WebRTCServer:
         video_track_factory=None,
         datachannel_handlers=None,
         state_factory=None,
+        rtc_configuration: RTCConfiguration = None,
     ):
         """
         Initializes the WebRTC Server.
@@ -44,6 +45,7 @@ class WebRTCServer:
         self.host = host
         self.port = port
         self.state_factory = state_factory
+        self.rtc_configuration = rtc_configuration
         self.app = FastAPI(lifespan=self.lifespan)
         self.pcs = set()  # global storage for peer connection(s)
 
@@ -121,8 +123,12 @@ class WebRTCServer:
         params = await request.json()
         offer = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
 
+        logger.debug(
+            f"Browser capabilities (offer) from {request.client.host}:\n{offer.sdp}"
+        )
+
         # Create a new peer connection
-        pc = RTCPeerConnection()
+        pc = RTCPeerConnection(configuration=self.rtc_configuration)
         pc_id = f"PeerConnection({uuid.uuid4()})"
         self.pcs.add(pc)
         logger.info(f"{pc_id}: Created PeerConnection for {request.client.host}")
@@ -174,6 +180,7 @@ class WebRTCServer:
         try:
             await pc.setRemoteDescription(offer)
             answer = await pc.createAnswer()
+            logger.debug(f"{pc_id}: Server capabilities (answer):\n{answer.sdp}")
             await pc.setLocalDescription(answer)
 
         except Exception as e:

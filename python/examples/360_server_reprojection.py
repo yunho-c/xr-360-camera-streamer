@@ -2,6 +2,8 @@ import asyncio
 import json
 import os
 import time
+import cProfile
+import pstats
 from pathlib import Path
 
 import numpy as np
@@ -9,6 +11,7 @@ from aiortc import MediaStreamTrack
 from av import VideoFrame
 from fastapi.responses import FileResponse
 
+from xr_360_camera_streamer import configure_logging
 from xr_360_camera_streamer.sources import FFmpegFileSource, OpenCVFileSource
 from xr_360_camera_streamer.streaming import WebRTCServer
 from xr_360_camera_streamer.transforms import EquilibEqui2Pers
@@ -16,6 +19,9 @@ from xr_360_camera_streamer.transforms import EquilibEqui2Pers
 # Params
 VIDEO_SOURCE = FFmpegFileSource
 # VIDEO_SOURCE = OpenCVFileSource
+
+# LOG_LEVEL = "INFO"
+LOG_LEVEL = "DEBUG"
 
 
 # Define a state object for orientation
@@ -45,8 +51,16 @@ class ReprojectionTrack(MediaStreamTrack):
         self.source = source
         self.transform = transform
         self._timestamp = 0
+        # Profiling attributes
+        self.profiler = cProfile.Profile()
+        self.frame_count = 0
+        self.profiled_frames = 300  # Number of frames to profile before printing stats
+        self.profile_output_dir = "profiles"
+        os.makedirs(self.profile_output_dir, exist_ok=True)
 
     async def recv(self):
+        self.profiler.enable()
+
         equi_frame_rgb = next(self.source)  # ALT
 
         # ORIG
@@ -77,6 +91,30 @@ class ReprojectionTrack(MediaStreamTrack):
         frame.pts = self._timestamp
         frame.time_base = time_base
         self._timestamp += int(time_base / self.source.fps)
+
+        self.profiler.disable()
+        self.frame_count += 1
+
+        if self.frame_count >= self.profiled_frames:
+            timestamp_ns = time.time_ns()
+
+            # Save human-readable stats
+            stats_file = os.path.join(self.profile_output_dir, f"profile_stats_{timestamp_ns}.txt")
+            with open(stats_file, "w") as f:
+                sortby = pstats.SortKey.CUMULATIVE
+                ps = pstats.Stats(self.profiler, stream=f).sort_stats(sortby)
+                ps.print_stats(50)
+
+            # Save raw profile data for visualization tools
+            raw_profile_file = os.path.join(
+                self.profile_output_dir, f"profile_stats_{timestamp_ns}.prof"
+            )
+            self.profiler.dump_stats(raw_profile_file)
+
+            print(f"--- Profiling stats saved to {stats_file} and {raw_profile_file} ---")
+
+            self.frame_count = 0
+            self.profiler.clear()
 
         return frame
 
@@ -121,6 +159,9 @@ def create_video_track(state: AppState):
 
 # Start server
 if __name__ == "__main__":
+    # Configure logging
+    configure_logging(level=LOG_LEVEL)
+
     data_handlers = {
         "control": on_control_message,
     }
