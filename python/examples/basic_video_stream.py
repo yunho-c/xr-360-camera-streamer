@@ -7,9 +7,17 @@ from aiortc import MediaStreamTrack
 from av import VideoFrame
 from fastapi.responses import FileResponse
 
+from xr_360_camera_streamer import configure_logging
 from xr_360_camera_streamer.sources import FFmpegFileSource
 from xr_360_camera_streamer.streaming import WebRTCServer
 from xr_360_camera_streamer.utils.codecs import maybe_enable_hardware_acceleration
+
+# Params
+VIDEO_SOURCE = FFmpegFileSource
+# VIDEO_SOURCE = OpenCVFileSource
+
+# LOG_LEVEL = "INFO"
+LOG_LEVEL = "DEBUG"
 
 
 # Define a simple video track that streams a file
@@ -69,6 +77,9 @@ def create_video_track():
 
 # Start server
 if __name__ == "__main__":
+    # Configure logging
+    configure_logging(level=LOG_LEVEL)
+
     # Attempt to enable hardware acceleration by monkey-patching the encoder
     maybe_enable_hardware_acceleration()
 

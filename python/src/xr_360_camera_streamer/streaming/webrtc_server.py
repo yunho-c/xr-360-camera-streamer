@@ -10,6 +10,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from .. import logger
+from ..utils.codecs import get_video_codecs_from_sdp
 
 
 class WebRTCServer:
@@ -123,8 +124,12 @@ class WebRTCServer:
         params = await request.json()
         offer = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
 
+        # logger.debug(
+        #     f"Browser capabilities (offer) from {request.client.host}:\n{offer.sdp}"
+        # )
+        video_codecs = get_video_codecs_from_sdp(offer.sdp)
         logger.debug(
-            f"Browser capabilities (offer) from {request.client.host}:\n{offer.sdp}"
+            f"Browser video codecs from {request.client.host}:\n{video_codecs}"
         )
 
         # Create a new peer connection
@@ -180,7 +185,9 @@ class WebRTCServer:
         try:
             await pc.setRemoteDescription(offer)
             answer = await pc.createAnswer()
-            logger.debug(f"{pc_id}: Server capabilities (answer):\n{answer.sdp}")
+            # logger.debug(f"{pc_id}: Server capabilities (answer):\n{answer.sdp}")
+            video_codecs = get_video_codecs_from_sdp(answer.sdp)
+            logger.debug(f"{pc_id}: Server video codecs:\n{video_codecs}")
             await pc.setLocalDescription(answer)
 
         except Exception as e:
