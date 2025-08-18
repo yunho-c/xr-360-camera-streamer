@@ -1,0 +1,66 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Profile with py-spy",
+            "type": "shell",
+            "command": "py-spy",
+            "args": [
+                "record",
+                "-o",
+                "profile.svg",
+                "--",
+                "python",
+                "${file}"
+            ],
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Attach py-spy to 360_server_reprojection.py",
+            "type": "shell",
+            "command": "echo \"Attaching py-spy... SUDO password may be required.\"; sudo py-spy record -o ${workspaceFolder}/profile.svg --pid $(pgrep -f 'uvicorn.*360_server_reprojection:app') --duration 60; echo \"py-spy profiling finished. See profile.svg.\"",
+            "problemMatcher": [],
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "new",
+                "showReuseMessage": false,
+                "clear": true
+            }
+        },
+        {
+            "label": "profile-and-debug",
+            "type": "shell",
+            "command": "py-spy record -o ${workspaceFolder}/profile.svg -- python -m debugpy --listen 127.0.0.1:5678 --wait-for-client ${workspaceFolder}/python/examples/360_server_reprojection.py",
+            "isBackground": true,
+            "problemMatcher": {
+                "owner": "python",
+                "pattern": {
+                    "regexp": "Waiting for client connection..."
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": "^py-spy.*",
+                    "endsPattern": "^Waiting for client connection..."
+                }
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "new",
+                "showReuseMessage": false,
+                "clear": true
+            }
+        }
+    ]
+}
